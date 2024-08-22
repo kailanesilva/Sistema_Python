@@ -1,6 +1,22 @@
 from flask import Flask, render_template, request, redirect, url_for
+from flask_sqlalchemy import SQLAlchemy
 
 app = Flask(__name__)
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///pedidos.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+db = SQLAlchemy(app)
+
+# Definição do modelo de Pedido
+class Pedido(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    produto_nome = db.Column(db.String(100), nullable=False)
+    quantidade = db.Column(db.Float, nullable=False)
+    unidade = db.Column(db.String(50), nullable=False)
+    total = db.Column(db.Float, nullable=False)
+
+# Criação do banco de dados
+with app.app_context():
+    db.create_all()
 
 # Lista de produtos disponíveis
 produtos = [
@@ -24,13 +40,24 @@ def pedido():
 
     produto = next((p for p in produtos if p['id'] == produto_id), None)
     if produto:
-        if produto['unidade'] == 'metro quadrado':
-            total = produto['preco'] * quantidade
-        else:
-            total = produto['preco'] * quantidade
+        total = produto['preco'] * quantidade
+        pedido = Pedido(produto_nome=produto['nome'], quantidade=quantidade, unidade=unidade, total=total)
+        db.session.add(pedido)
+        db.session.commit()
         return render_template('pedido.html', produto=produto, quantidade=quantidade, total=total, unidade=unidade)
     else:
         return redirect(url_for('index'))
+
+@app.route('/pedidos')
+def lista_pedidos():
+    pedidos = Pedido.query.all()
+    return render_template('lista_pedidos.html', pedidos=pedidos)
+
+@app.route('/limpar_pedidos', methods=['POST'])
+def limpar_pedidos():
+    Pedido.query.delete()  # Remove todos os pedidos
+    db.session.commit()
+    return redirect(url_for('lista_pedidos'))
 
 if __name__ == '__main__':
     app.run(debug=True)
